@@ -10,6 +10,22 @@ QO_df <- read.csv('QO.csv')
 QI <- as.matrix(sapply(QI_df[, -1], as.numeric))
 QO <- as.matrix(sapply(QO_df[, -1], as.numeric))
 
+QO_trans <- t(QO)
+hist(QO_trans[,14])
+
+
+# simulate at the initial guesses (e.g. all betas = 0) and see whether 
+# alpha or lambda could ever be ≤ 0 or NaN
+QIvals <- as.vector(QI)              # flatten  
+mu0    <- exp(0 + 1 * QIvals)        # initial mu  
+sig0   <- exp(0 + 1 * QIvals)        # initial sigma  
+alpha0 <- mu0^2 / (sig0^2 + 0.01)  
+lambda0<- mu0   / (sig0^2 + 0.01)  
+
+range(alpha0)    # should be (strictly) positive
+range(lambda0)   # should be (strictly) positive
+
+
 colnames(QI) <- NULL
 rownames(QI) <- NULL
 colnames(QO) <- NULL
@@ -31,33 +47,30 @@ model_string <- "
 model {
   for (i in 1:N) {
     for (y in 1:Y) {
-      log(mu[i, y]) <- beta0[i] + beta1[i] * QI[i, y]
-      log_sigma[i, y] <- eta0 + eta1 * QI[i, y]
-      sigma[i, y] <- exp(log_sigma[i, y])
+      mu[i, y] <- beta0[i] + beta1[i] * QI[i, y]
+      sigma[i, y] <- eta0 + eta1 * QI[i, y]
       
-      alpha[i, y] <- mu[i, y]^2 / sigma[i, y]^2
-      lambda[i, y] <- mu[i, y] / sigma[i, y]^2
+      
+      alpha[i, y] <- mu[i, y]^2 / (sigma[i, y]^2 + 0.01)
+      lambda[i, y] <- mu[i, y] / (sigma[i, y]^2 + 0.01)
       
       QO[i, y] ~ dgamma(alpha[i, y], lambda[i, y])  #likelihood
-      QO_pred[i, y] ~ dgamma(alpha[i, y], lambda[i, y])  # posterior predictive
-
+    
     }
 
-    beta0[i] ~ dnorm(gamma0 +  gamma1*DOR[i] , tau0)
-    beta1[i] ~ dnorm(delta0 +  delta1*DOR[i] , tau1)
+    beta0[i] ~ dnorm(gamma0 +  gamma1*DOR[i] , 0.01)
+    beta1[i] ~ dnorm(delta0 +  delta1*DOR[i] , 0.01)
   }
 
-  eta0 ~ dnorm(0, 1)
-  eta1 ~ dnorm(0, 1)
+  eta0 ~ dgamma(0.5, 1)
+  eta1 ~ dgamma(0.5, 1)
 
-  gamma0 ~ dnorm(0, 0.01)
-  gamma1 ~ dnorm(0, 0.01)
+  gamma0 ~ dgamma(0.5, 1)
+  gamma1 ~ dgamma(0.5, 1)
 
-  delta0 ~ dnorm(0, 0.01)
-  delta1 ~ dnorm(0, 0.01)
+  delta0 ~ dgamma(0.5, 1)
+  delta1 ~ dgamma(0.5, 1)
 
-  tau0 ~ dt(0, pow(2, -2), 1) T(0,) #Half cauchy (0,2)
-  tau1 ~ dt(0, pow(2, -2), 1) T(0,)
 }
 "
 
@@ -65,15 +78,15 @@ model {
 jags_model <- jags.model(
   textConnection(model_string),
   data = data_jags,
-  n.chains = 2,
+  n.chains = 2, #quiet=FALSE,
   n.adapt = 5000  # Adaptation (includes burn-in)
 )
 
 # Step 2: Sample from posterior
 samples <- coda.samples(
   jags_model,
-  variable.names = c("gamma0", "delta0", "eta0", "tau0", "tau1"),
-  n.iter = 20000  # Increased for better convergence
+  variable.names = c("gamma0", "delta0", "eta0"),
+  n.iter = 5000  # Increased for better convergence
 )
 
 # Step 3: Posterior predictive checks (PPC)
