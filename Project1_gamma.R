@@ -1,4 +1,4 @@
-##Run with only one reservoir characteristics i.e DOR
+#Run with only one reservoir characteristics i.e DOR
 
 library(rjags)
 
