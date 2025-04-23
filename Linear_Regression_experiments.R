@@ -213,6 +213,45 @@ model {
 "
 
 
+# One-way random effect with hierarchical random effect with inflow ###########################################
+# Data
+data_jags <- list(
+  N = N,
+  Y = Y,
+  QO = QO_scaled,
+  QI = QI_scaled,
+  Capacity = scale(res_chars$Capacity),
+  DOR = scale(res_chars$DOR),
+  Depth = scale(res_chars$Depth),
+  CatchArea = scale(res_chars$CatchArea),
+  AvgRelease = scale(res_chars$AvgRelease)
+)
+
+
+model_string <- "
+model {
+  for (i in 1:N) {
+    for (y in 1:Y) {
+      QO[i,y] ~ dnorm(beta[i], sig2_inv) # likelihood
+      QO_pred[i, y] ~ dnorm(beta[i], sig2_inv)   # posterior predictive
+    }
+    }
+  # random effects
+  for (i in 1:N){
+    beta[i] ~ dnorm(gamma0 + gamma1*Capacity[i,] + gamma2*DOR[i,] + gamma3*Depth[i,] + gamma4*CatchArea[i,] + gamma5*AvgRelease[i,] + gamma6*QI[i,], tau2_inv)
+  }
+  # priors
+  mu   ~ dnorm(0, 0.0001)
+  sig2_inv ~ dgamma(0.1, 0.1)
+  tau2_inv ~ dgamma(0.1, 0.1)
+  gamma0 ~ dnorm(0, 0.01)
+  gamma1 ~ dnorm(0, 0.01)
+  gamma2 ~ dnorm(0, 0.01)
+  gamma3 ~ dnorm(0, 0.01)
+  gamma4 ~ dnorm(0, 0.01)
+  gamma5 ~ dnorm(0, 0.01)
+}
+"
 
 ###############################################
 
