@@ -10,8 +10,16 @@ QO_df <- read.csv('QO.csv')
 QI <- as.matrix(sapply(QI_df[, -1], as.numeric))
 QO <- as.matrix(sapply(QO_df[, -1], as.numeric))
 
-QO_trans <- t(QO)
-hist(QO_trans[,14])
+colnames(QI) <- NULL
+rownames(QI) <- NULL
+colnames(QO) <- NULL
+rownames(QO) <- NULL
+
+N <- nrow(res_chars)  # number of reservoirs
+Y <- ncol(QI)   # number of years per reservoir
+
+QI_scaled <- scale(QI)
+QO_scaled <- scale(QO)
 
 data_jags <- list(
   N = N,
@@ -25,35 +33,6 @@ data_jags <- list(
   AvgRelease = res_chars$AvgRelease
 )
 
-
-
-# simulate at the initial guesses (e.g. all betas = 0) and see whether 
-# alpha or lambda could ever be ≤ 0 or NaN
-QIvals <- as.vector(QI)              # flatten  
-mu0    <- exp(0 + 1 * QIvals)        # initial mu  
-sig0   <- exp(0 + 1 * QIvals)        # initial sigma  
-alpha0 <- mu0^2 / (sig0^2 + 0.01)  
-lambda0<- mu0   / (sig0^2 + 0.01)  
-
-range(alpha0)    # should be (strictly) positive
-range(lambda0)   # should be (strictly) positive
-
-
-colnames(QI) <- NULL
-rownames(QI) <- NULL
-colnames(QO) <- NULL
-rownames(QO) <- NULL
-
-N <- nrow(res_chars)  # number of reservoirs
-Y <- ncol(QI)   # number of years per reservoir
-
-data_jags <- list(
-  N = N,
-  Y = Y,
-  QI = QI,
-  QO = QO,
-  DOR = res_chars$DOR
-)
 
 
 model_string <- "
@@ -92,7 +71,6 @@ model {
   delta3 ~ dgamma(0.5, 1)
   delta4 ~ dgamma(0.5, 1)
   delta5 ~ dgamma(0.5, 1)
-
 }
 "
 

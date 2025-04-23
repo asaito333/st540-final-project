@@ -58,21 +58,21 @@ model {
 data_jags <- list(
   N = N,
   Y = Y,
-  QI = QI,
-  QO = QO,
-  Capacity = res_chars$Capacity,
-  DOR = res_chars$DOR,
-  Depth = res_chars$Depth,
-  CatchArea = res_chars$CatchArea,
-  AvgRelease = res_chars$AvgRelease
+  QI = QI_scaled,
+  QO = QO_scaled,
+  Capacity = scale(res_chars$Capacity),
+  DOR = scale(res_chars$DOR),
+  Depth = scale(res_chars$Depth),
+  CatchArea = scale(res_chars$CatchArea),
+  AvgRelease = scale(res_chars$AvgRelease)
 )
 
 model_string <- "
 model {
   for (i in 1:N) {
     for (y in 1:Y) {
-      QO[i, y] ~ dnorm(beta0 + beta1*QI[i, y] + beta2*Capacity[i] + beta3*DOR[i] + beta4*Depth[i] + beta5*CatchArea[i] + beta6*AvgRelease[i], tau)  #likelihood
-      QO_pred[i, y] ~ dnorm(beta0 + beta1*QI[i, y] + beta2*Capacity[i] + beta3*DOR[i] + beta4*Depth[i] + beta5*CatchArea[i] + beta6*AvgRelease[i], tau)  # posterior predictive
+      QO[i, y] ~ dnorm(beta0 + beta1*QI[i, y] + beta2*Capacity[i,] + beta3*DOR[i,] + beta4*Depth[i,] + beta5*CatchArea[i,] + beta6*AvgRelease[i,], tau)  #likelihood
+      QO_pred[i, y] ~ dnorm(beta0 + beta1*QI[i, y] + beta2*Capacity[i,] + beta3*DOR[i,] + beta4*Depth[i,] + beta5*CatchArea[i,] + beta6*AvgRelease[i,], tau)  # posterior predictive
     }
     }
   # prior
@@ -173,22 +173,17 @@ model {
 "
 
 
-# Random slopes model  ###########################################
-Capacity = res_chars$Capacity
-DOR = res_chars$DOR
-Depth = res_chars$Depth
-CatchArea = res_chars$CatchArea
-AvgRelease = res_chars$AvgRelease
-
-X <- cbind(Capacity, DOR, Depth, CatchArea, AvgRelease)
-p <- ncol(X)
+# One-way random effect with hierarchical random effect ###########################################
 # Data
 data_jags <- list(
   N = N,
   Y = Y,
-  X = X,
-  p = p,
-  QO = QO_scaled
+  QO = QO_scaled,
+  Capacity = scale(res_chars$Capacity),
+  DOR = scale(res_chars$DOR),
+  Depth = scale(res_chars$Depth),
+  CatchArea = scale(res_chars$CatchArea),
+  AvgRelease = scale(res_chars$AvgRelease)
 )
 
 
@@ -196,19 +191,28 @@ model_string <- "
 model {
   for (i in 1:N) {
     for (y in 1:Y) {
-      QO[i, y] ~ dnorm(betainprod(X[i,],beta[,i]), taue)  #likelihood
-      QO_pred[i, y] ~ dnorm(inprod(X[i,],beta[,i]), taue)  # posterior predictive
+      QO[i,y] ~ dnorm(beta[i], sig2_inv) # likelihood
+      QO_pred[i, y] ~ dnorm(beta[i], sig2_inv)   # posterior predictive
     }
     }
-  # prior
-  for (j in 1:p){
-    beta[j,] ~ dnorm(mu, taua)
+  # random effects
+  for (i in 1:N){
+    beta[i] ~ dnorm(gamma0 + gamma1*Capacity[i,] + gamma2*DOR[i,] + gamma3*Depth[i,] + gamma4*CatchArea[i,] + gamma5*AvgRelease[i,], tau2_inv)
   }
+  # priors
   mu   ~ dnorm(0, 0.0001)
-  taue ~ dgamma(0.1, 0.1)
-  taua ~ dgamma(0.1, 0.1)
+  sig2_inv ~ dgamma(0.1, 0.1)
+  tau2_inv ~ dgamma(0.1, 0.1)
+  gamma0 ~ dnorm(0, 0.01)
+  gamma1 ~ dnorm(0, 0.01)
+  gamma2 ~ dnorm(0, 0.01)
+  gamma3 ~ dnorm(0, 0.01)
+  gamma4 ~ dnorm(0, 0.01)
+  gamma5 ~ dnorm(0, 0.01)
 }
 "
+
+
 
 ###############################################
 
@@ -234,7 +238,7 @@ samples_ppc <- coda.samples(
   n.iter = 2000  # Can be smaller if only for visualization
 )
 
-library(ggplot2)
+# library(ggplot2)
 
 # Convert to matrix and extract predicted values
 samples_mat <- as.matrix(samples_ppc)
@@ -245,7 +249,7 @@ pred_means <- colMeans(samples_mat[, pred_vars])
 pred_matrix <- matrix(pred_means, nrow = N, ncol = Y)
 
 # Flatten observed and predicted
-obs <- as.vector(QO)
+obs <- as.vector(QO_scaled)
 pred <- as.vector(pred_matrix)
 
 # Plot
