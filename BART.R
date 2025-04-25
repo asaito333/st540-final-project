@@ -82,7 +82,9 @@ fit <- wbart(
   printevery = 0
 )
 
-# dbarts
+
+
+# Model: ntree=5
 fit2 <- bart(
   x.train = X_train,
   y.train = Y_train,
@@ -115,70 +117,102 @@ plot(
   yhat_mean,
   xlab = "Observed Outflow (Y_test)",
   ylab = "Predicted Outflow (yhat_mean)",
-  main = "Observed vs. Predicted Outflow",
+  main = "Observed vs. Predicted Outflow ntree=5",
   pch  = 16
 )
 abline(0, 1, lty = 3)  # 45° line for reference
 
 
+# feature importance
+varcount_mat <- fit2$varcount
+
+# 2. Compute the average split‐count per predictor
+var_importance <- colMeans(varcount_mat)
+
+# 3. Put into a data.frame and sort descending
+var_imp_df <- data.frame(
+  Variable   = colnames(X_train),
+  Importance = var_importance
+)
+var_imp_df <- var_imp_df[order(var_imp_df$Importance, decreasing = TRUE), ]
+
+# 4. Print the sorted importance
+print(var_imp_df)
+
+# 5. Barplot of variable importance
+barplot(
+  var_imp_df$Importance,
+  names.arg  = var_imp_df$Variable,
+  las        = 2,            # vertical axis labels
+  cex.names  = 0.8,          # label size
+  main       = "BART Variable Importance",
+  ylab       = "Average Split Count"
+)
 
 
 
 
 
+# Model: ntree = 10
+fit3 <- bart(
+  x.train = X_train,
+  y.train = Y_train,
+  x.test  = X_test,
+  ntree   = 10,
+  verbose = FALSE
+)
 
 
+yhat_mean3 <- fit3$yhat.test.mean
+yhat_samples3 <- fit3$yhat.test
+yhat_sd3 <- apply(yhat_samples3, 2, sd)
+
+results3 <- data.frame(
+  Observed   = Y_test,       
+  Predicted  = yhat_mean3,
+  Uncertainty = yhat_sd3
+)
 
 
-# Sample code: https://www4.stat.ncsu.edu/~bjreich/BSM2/Chapter8/Cloud_BART
+# 1. Compute R²
+ss_res3 <- sum((Y_test - yhat_mean3)^2)
+ss_tot <- sum((Y_test - mean(Y_test))^2)
+R2_3     <- 1 - ss_res3/ss_tot
+cat("R-squared:", round(R2_3, 4), "\n")
 
+# 2. Scatter plot of true vs. predicted
+plot(
+  Y_test, 
+  yhat_mean3,
+  xlab = "Observed Outflow (Y_test)",
+  ylab = "Predicted Outflow (yhat_mean)",
+  main = "Observed vs. Predicted Outflow ntree=10",
+  pch  = 16
+)
+abline(0, 1, lty = 3)  # 45° line for reference
 
-install.packages("BART")
-library(BART)
-install.packages("lubridate")
-library(lubridate)
+# feature importance
+varcount_mat <- fit3$varcount
 
-filename   <- "https://www4.stat.ncsu.edu/~bjreich/BSM2/Chapter8/cloud_data_clean.csv"
-dat        <- read.csv(url(filename))
-complete   <- rowSums(is.na(dat))==0
-dat        <- dat[complete,]
-ID         <- dat$StormID
-lead_time  <- dat$lead_time
-basin      <- ifelse(dat$basin=="atlantic",1,0)
-X          <- as.matrix(dat[,5:22])
-Xs         <- scale(X)
-HWRF       <- dat$HWRF
-NHC        <- dat$NHC
-Y          <- dat$VMAX
-year       <- year(dat$Date)
-lead_times <- sort(unique(lead_time))
-nleads     <- length(lead_times)
+# 2. Compute the average split‐count per predictor
+var_importance <- colMeans(varcount_mat)
 
-test        <- year==2017
-train       <- !test
+# 3. Put into a data.frame and sort descending
+var_imp_df <- data.frame(
+  Variable   = colnames(X_train),
+  Importance = var_importance
+)
+var_imp_df <- var_imp_df[order(var_imp_df$Importance, decreasing = TRUE), ]
 
-pred1    <- pred2 <- rep(NA,length(Y))
-varcount <- NULL 
-options(warn=-1)
+# 4. Print the sorted importance
+print(var_imp_df)
 
-for(t in 1:nleads){
-  tr        <- train & lead_time==lead_times[t]
-  te        <- test  & lead_time==lead_times[t]
-  
-  temp      <- capture.output(fit1<-wbart(Xs[tr,],Y[tr],x.test=Xs[te,],
-                                          printevery=Inf,ntree=20))
-  pred1[te] <- fit1$yhat.test.mean
-  varcount  <- cbind(varcount,colMeans(fit1$varcount))
-  
-  temp      <- capture.output(fit2<-wbart(Xs[tr,],Y[tr],x.test=Xs[te,],
-                                          printevery=Inf,ntree=100))
-  pred2[te] <- fit2$yhat.test.mean
-}
-
-options(warn=0)
-
-mae      <- function(x){mean(abs(x),na.rm=TRUE)}
-MAE_NHC  <- aggregate(Y[test]-  NHC[test],list(lead_time[test]),mae)
-MAE_HWRF <- aggregate(Y[test]- HWRF[test],list(lead_time[test]),mae)
-BART1    <- aggregate(Y[test]-pred1[test],list(lead_time[test]),mae)
-BART2    <- aggregate(Y[test]-pred2[test],list(lead_time[test]),mae)
+# 5. Barplot of variable importance
+barplot(
+  var_imp_df$Importance,
+  names.arg  = var_imp_df$Variable,
+  las        = 2,            # vertical axis labels
+  cex.names  = 0.8,          # label size
+  main       = "BART Variable Importance ntree=10",
+  ylab       = "Average Split Count"
+)
