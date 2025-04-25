@@ -6,7 +6,15 @@ library(dplyr)
 # install.packages('tidyr')
 library(tidyr)
 # install.packages("BART")
-library(BART)
+# force everything to run on one thread: ended up session abort
+# Sys.setenv(
+#  OMP_NUM_THREADS       = 1,
+#  OPENBLAS_NUM_THREADS  = 1,
+#  MKL_NUM_THREADS       = 1
+# )
+# library(BART)
+# install.packages("dbarts")
+library(dbarts) # worked
 
 # read data
 set.seed(12)
@@ -63,22 +71,54 @@ Y_train   <- Y[train_idx]
 X_test    <- X[test_idx, ]
 Y_test    <- Y[test_idx]
 
-# 50‐tree “default” model
-fit_bart <- wbart(
-  x.train    = X_train,
+# BART: aborted
+fit <- wbart(
+  x.train    = X_train, 
   y.train    = Y_train,
   x.test     = X_test,
-  ntree      = 50,          # start modestly
-  printevery = 0            # mute console output
+  ntree      = 5,
+  nskip      = 200,    # burn in
+  ndpost     = 300,    # posterior draws
+  printevery = 0
 )
 
-# predictions:
-yhat <- fit_bart$yhat.test.mean
+# dbarts
+fit2 <- bart(
+  x.train = X_train,
+  y.train = Y_train,
+  x.test  = X_test,
+  ntree   = 5,
+  verbose = FALSE
+)
+
+# Results
+yhat_mean <- fit2$yhat.test.mean
+yhat_samples <- fit2$yhat.test
+yhat_sd <- apply(yhat_samples, 2, sd)
+
+results <- data.frame(
+  Observed   = Y_test,       
+  Predicted  = yhat_mean,
+  Uncertainty = yhat_sd
+)
 
 
+# 1. Compute R²
+ss_res <- sum((Y_test - yhat_mean)^2)
+ss_tot <- sum((Y_test - mean(Y_test))^2)
+R2     <- 1 - ss_res/ss_tot
+cat("R-squared:", round(R2, 4), "\n")
 
-
-
+# 2. Scatter plot of true vs. predicted
+plot(
+  Y_test, 
+  yhat_mean,
+  xlab = "Observed Outflow (Y_test)",
+  ylab = "Predicted Outflow (yhat_mean)",
+  main = "Observed vs. Predicted Outflow",
+  pch  = 16
+)
+abline(0, 1)  # 45° line for reference
 
 
 
