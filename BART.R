@@ -118,7 +118,7 @@ plot(
   main = "Observed vs. Predicted Outflow",
   pch  = 16
 )
-abline(0, 1)  # 45° line for reference
+abline(0, 1, lty = 3)  # 45° line for reference
 
 
 
